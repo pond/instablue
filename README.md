@@ -19,6 +19,8 @@ That is far tighter than Instagram's limits, so:
 * Images are posted before videos. Up to four images are used per post, splitting using a thread as described above if need be.
 * Videos are posted last. Cover photos are *not* exported - they're deliberately skipped.
 
+If an error occurs when a "root" post has successfully been made, but one of the 'thread' related posts fails, then you'll need to clean up the partial post manually before restarting. See later for information on restarting and retries.
+
 
 
 ## Prerequisites
@@ -107,4 +109,4 @@ For a completely clean start, delete:
 * `posts_finished.yml`
 * `results.csv`
 
-...and run Instablue again.
+...and run Instablue again. Note that the terminal dumps a fair bit of information for each post, including HTTPS URLs as previously mentioned to visit a specific post in case you want to delete something before the retry.
