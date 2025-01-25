@@ -28,9 +28,11 @@ If an error occurs when a "root" post has successfully been made, but one of the
 
 Instablue was developed on Ruby 3.4 on macOS, installed using [RVM](https://rvm.io/) to manage versions, but older and newer Ruby 3 versions should work fine as should other version and package managers on macOS (e.g. [asdf](https://asdf-vm.com)) or other operating systems.
 
-### Image Magick
+### Image Magick and FFmpeg
 
 BlueSky has an image size limit of about a megabyte which Instagram images in newer posts will often exceed. Image quality must be lowered to reach the size limit if an image is too big, by re-encoding via the MiniMagick gem. This relies upon the prior installation of [ImageMagick](https://imagemagick.org). On macOS using [HomeBrew](https://brew.sh) you can install this easily with `brew install imagemagick`. Otherwise, please consult ImageMagick's installation documentation for help.
+
+Likewise, some video information and processing actions require [FFmpeg](https://www.ffmpeg.org) - installed for example via HomeBrew using `brew install ffmpeg`.
 
 ### Gems
 

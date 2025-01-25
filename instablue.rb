@@ -23,8 +23,9 @@ STARTED_FILE        = File.join(File.dirname(__FILE__), 'posts_started.yml').to_
 FINISHED_FILE       = File.join(File.dirname(__FILE__), 'posts_finished.yml').to_s
 MAX_CHARS_IN_TEXT   = 300
 MAX_PHOTOS_PER_POST = 4
-MAX_VIDEOS_PER_POST = 1
 MAX_PHOTO_BYTES     = 1_000_000
+MAX_VIDEOS_PER_POST = 1
+MAX_VIDEO_SECONDS   = 60
 BSKY_CLIENT         = Minisky.new(BLUESKY_SERVER, 'bluesky_creds.yml')
 COPY_TEXT_IF_EMPTY  = 'Copied from Instagram'
 COPY_TEXT_AS_PREFIX = 'Copied from Instagram: '
@@ -98,6 +99,7 @@ date_times.sort!
 puts "Loading progress files if present..."
 
 image_tempfile = nil
+video_tempdir  = nil
 posts_started  = YAML.load(File.read(STARTED_FILE )) rescue []
 posts_finished = YAML.load(File.read(FINISHED_FILE)) rescue []
 csv_string     = File.read(CSV_RESULTS_FILE) rescue ''
@@ -128,6 +130,10 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
     posts_started << post_date_time.iso8601
     File.write(STARTED_FILE, YAML.dump(posts_started))
   end
+
+  puts "="*80
+  puts "#{post_date_time_index + 1} of #{date_times.size}"
+  puts "="*80
 
   filename_match = post_date_time.strftime('%Y-%m-%d_%H-%M-%S_%Z')
   post_pathnames = Dir.glob(File.join(BASE_DIR, "#{filename_match}*")).sort
@@ -234,6 +240,65 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
 
   post_texts << text_part if text_part.size > 0
 
+  # We may need to split videos into chunks depending on their length.
+  #
+  videos.map! do | video_pathname |
+    replacements = [video_pathname]
+    duration_str = VideoDimensions.duration(video_pathname)
+
+    unless duration_str.nil?
+      hh, mm, ss = duration_str.split(':').map(&:to_i)
+      duration = ((hh || 0) * 3600) + ((mm || 0) * 60) + (ss || 0)
+
+      # We don't let it *equal* 60 seconds as BlueSky can be fussy about being
+      # even a little bit over and there are rounding errors to consider.
+      #
+      if duration >= MAX_VIDEO_SECONDS
+        video_tempdir = Dir.mktmpdir('instablue')
+
+        # https://unix.stackexchange.com/a/212518/
+        #
+        # The segment size is MAX_VIDEO_SECONDS - 5 as keyframes in
+        # Instagram videos can be quite infrequent and the command below
+        # outputs the number of seconds asked, then *keeps going* up to
+        # the next keyframe - each segment is a bit longer than requested.
+        # Yes, picking a 2 second leeway is a hack and almost[*] arbitrary,
+        # but AFAICT FFmpeg doesn't give us another option and I can't
+        # complain about the very fast performance and output quality (no
+        # video re-encoding) arising.
+        #
+        # [*] "Almost" - trial and error showed 1, 2 then 5 second choices gave
+        #     a particular test video that was just over 60, just over 60, then
+        #     56 seconds long - a 5 second window yielded the required output.
+        #
+        stdout, status = Open3.capture2(
+          'ffmpeg',
+          '-i',
+          video_pathname,
+          '-c',
+          'copy',
+          '-map',
+          '0',
+          '-segment_time',
+          Time.at(MAX_VIDEO_SECONDS - 5).utc.strftime('%H:%M:%S'),
+          '-f',
+          'segment',
+          '-reset_timestamps',
+          '1',
+          File.join(video_tempdir, "#{File.basename(video_pathname, File.extname(video_pathname))}-%03d.mp4")
+        )
+
+        raise 'Failed to chop video up into smaller chunks' unless status.success?
+
+        replacements = Dir.glob(File.join(video_tempdir, '**'))
+      end
+    end
+
+    replacements
+  end
+
+  videos.flatten!
+
   # Now walk through post texts, images and videos, keeping posting until all
   # are consumed.
   #
@@ -246,10 +311,6 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
     post_texts.size,
     (photos.size.to_f / MAX_PHOTOS_PER_POST).ceil() + (videos.size.to_f / MAX_VIDEOS_PER_POST).ceil()
   ].max()
-
-  puts "="*80
-  puts "#{post_date_time_index + 1} of #{date_times.size}"
-  puts "="*80
 
   loop do
     raw_post_text     = post_texts[text_index]
@@ -359,7 +420,7 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
           }
 
           embed[:images] << {
-            alt:         File.basename(attachment_pathname),
+            alt:         File.basename(attachment_pathname, File.extname(attachment_pathname)),
             image:       response['blob'],
             aspectRatio: {
               width:  dimensions.first,
@@ -452,6 +513,9 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
 ensure
   image_tempfile.unlink() unless image_tempfile.nil?
   image_tempfile = nil
+
+  FileUtils.remove_entry(video_tempdir) unless video_tempdir.nil?
+  video_tempdir = nil
 end
 
 puts "*" * 80
