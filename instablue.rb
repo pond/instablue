@@ -28,9 +28,29 @@ MAX_PHOTO_BYTES     = 1_000_000
 BSKY_CLIENT         = Minisky.new(BLUESKY_SERVER, 'bluesky_creds.yml')
 COPY_TEXT_IF_EMPTY  = 'Copied from Instagram'
 COPY_TEXT_AS_PREFIX = 'Copied from Instagram: '
-USE_REAL_API_CALLS  = true # false -> test mode, won't call BlueSky
 
-BSKY_CLIENT.user.did # Wake up client and ensure there's working authorisation
+# Instablue doesn't tend to encounter explicit post rate limiting but even so,
+# you might want to sleep between each Instagram post (Bluesky thread). Set to
+# 0 -> don't, else this is an inter-post sleep in seconds. Ctrl+C becomes
+# "safer" while sleeping since there's no started-but-unfinished file and no
+# API calls are underway, so a sleep delay can be handy if you sometimes want
+# to deliberately halt posting fully, intending to resume later.
+#
+SLEEP_BETWEEN_POSTS = 10#
+
+# This is really just for me during debugging sometimes and generally speaking
+# the script will *not* work if this is set to 'false' in released versions.
+#
+USE_REAL_API_CALLS  = true
+
+# If using Minisky for the first time, it can break when we attempt to post for
+# the first time, as the post body requires the user's DID but that isn't set
+# up yet and the payload typically ends up with a "null" in there, causing a
+# failure. I wouldn't expect that, given synchronous execution and the order of
+# evaluation, but it happens consistently. So - the call below forces the
+# client to fetch the DiD right now. This seems to work around the problem.
+#
+BSKY_CLIENT.user.did
 
 # =============================================================================
 # HELPER METHODS
@@ -402,11 +422,17 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
     text_index += 1
   end
 
-  puts "="*80
-  puts
-
   posts_finished << post_date_time.iso8601
   File.write(FINISHED_FILE, YAML.dump(posts_finished))
+
+  if SLEEP_BETWEEN_POSTS > 0
+    puts "(Sleep #{SLEEP_BETWEEN_POSTS}s)"
+    puts
+    sleep SLEEP_BETWEEN_POSTS
+  end
+
+  puts "="*80
+  puts
 
 ensure
   image_tempfile.unlink() unless image_tempfile.nil?

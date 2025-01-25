@@ -92,6 +92,7 @@ Next, edit `instablue.rb`.
 
 * Change `BASE_DIR` to point to the folder that Instaloader created with your instagram data
 * If you use a server other than `bsky.social`, then edit `BLUESKY_SERVER` just below `BASE_DIR` accordingly
+* Read about the SLEEP_BETWEEN_POSTS constants if you want to change / remove the between-post delay.
 
 
 
