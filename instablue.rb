@@ -228,9 +228,13 @@ date_times.each do | post_date_time |
 
   loop do
     raw_post_text     = post_texts[text_index]
-    actual_post_text  = "(#{text_index + 1}/#{parts_count}) #{raw_post_text&.strip&.chomp('.')}".strip
     post_attachments  = photos[photo_index...(photo_index + MAX_PHOTOS_PER_POST)] # Send photos first
     shifted_date_time = (post_date_time + (1 * text_index))
+    actual_post_text  = if parts_count > 1
+      "(#{text_index + 1}/#{parts_count}) #{raw_post_text&.strip&.chomp('.')}".strip
+    else
+      raw_post_text&.strip
+    end
 
     if post_attachments&.any? == true
       photo_index += MAX_PHOTOS_PER_POST
