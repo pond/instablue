@@ -325,6 +325,9 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
       end
 
       if USE_REAL_API_CALLS
+
+        # https://docs.bsky.app/docs/api/com-atproto-repo-upload-blob
+        #
         response = BSKY_CLIENT.post_request(
           'com.atproto.repo.uploadBlob',
           File.read(attachment_pathname).force_encoding('ASCII-8BIT'),
@@ -335,6 +338,9 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
         # keep overwriting until updated, regardless of MAX_VIDEOS_PER_POST.
         #
         if is_video
+
+          # https://gist.github.com/mozzius/5cbbd15e12cdc0cb1d0d992b7c3b1d0f#file-happy-path-ts-L93
+          #
           embed = {
             '$type':     'app.bsky.embed.video',
             video:       response['blob'],
@@ -344,6 +350,9 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
             }
           }
         else
+
+          # https://docs.bsky.app/docs/advanced-guides/posts#images-embeds
+          #
           embed ||= {
             '$type': 'app.bsky.embed.images',
             images:  []
@@ -362,6 +371,10 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
     end
 
     if USE_REAL_API_CALLS
+
+      # https://docs.bsky.app/docs/api/com-atproto-repo-create-record
+      # https://docs.bsky.app/docs/advanced-guides/posts#post-record-structure
+      #
       record_body = {
         text:      actual_post_text,
         createdAt: shifted_date_time.iso8601,
@@ -370,6 +383,8 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
 
       record_body['embed'] = embed unless embed.nil?
 
+      # https://docs.bsky.app/docs/advanced-guides/posts#replies
+      #
       unless root_post_uri.nil?
         record_body['reply'] = {
           root: {
@@ -412,7 +427,7 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
           puts e.inspect
         end
 
-        puts "ROOT POST DETTAILS:"
+        puts "ROOT POST DETAILS:"
         puts at_to_https(root_post_uri)
         puts root_post_uri
         puts root_post_cid
