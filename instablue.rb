@@ -36,7 +36,7 @@ COPY_TEXT_AS_PREFIX = 'Copied from Instagram: '
 # API calls are underway, so a sleep delay can be handy if you sometimes want
 # to deliberately halt posting fully, intending to resume later.
 #
-SLEEP_BETWEEN_POSTS = 10#
+SLEEP_BETWEEN_POSTS = 5
 
 # This is really just for me during debugging sometimes and generally speaking
 # the script will *not* work if this is set to 'false' in released versions.
