@@ -8,6 +8,7 @@ require 'debug'
 
 require 'minisky'
 require 'fastimage'
+require 'mini_magick'
 require 'video_dimensions'
 
 # =============================================================================
@@ -23,6 +24,7 @@ FINISHED_FILE       = File.join(File.dirname(__FILE__), 'posts_finished.yml').to
 MAX_CHARS_IN_TEXT   = 300
 MAX_PHOTOS_PER_POST = 4
 MAX_VIDEOS_PER_POST = 1
+MAX_PHOTO_BYTES     = 1_000_000
 BSKY_CLIENT         = Minisky.new(BLUESKY_SERVER, 'bluesky_creds.yml')
 COPY_TEXT_IF_EMPTY  = 'Copied from Instagram'
 COPY_TEXT_AS_PREFIX = 'Copied from Instagram: '
@@ -75,6 +77,7 @@ date_times.sort!
 
 puts "Loading progress files if present..."
 
+image_tempfile = nil
 posts_started  = YAML.load(File.read(STARTED_FILE )) rescue []
 posts_finished = YAML.load(File.read(FINISHED_FILE)) rescue []
 csv_string     = File.read(CSV_RESULTS_FILE) rescue ''
@@ -88,7 +91,7 @@ end
 #
 puts "Processing individual dates..."
 
-date_times.each do | post_date_time |
+date_times.each_with_index do | post_date_time, post_date_time_index |
   if posts_finished.include?(post_date_time.iso8601)
     puts "WARNING: Already posted #{post_date_time} -> skipping"
     next # NOTE EARLY LOOP RESTART
@@ -225,6 +228,8 @@ date_times.each do | post_date_time |
   ].max()
 
   puts "="*80
+  puts "#{post_date_time_index + 1} of #{date_times.size}"
+  puts "="*80
 
   loop do
     raw_post_text     = post_texts[text_index]
@@ -264,6 +269,40 @@ date_times.each do | post_date_time |
       end
 
       is_video = mime_type.start_with?('video')
+
+      unless is_video
+        image_size    = File.size(attachment_pathname)
+        quality_guess = 99
+
+        if image_size > MAX_PHOTO_BYTES
+          puts "Image size of #{image_size} exceeds #{MAX_PHOTO_BYTES}, so re-encoding JPEG..."
+
+          loop do
+            puts "Trying quality #{quality_guess}..."
+
+            # Use ::open to refer to the original but not modify it, vs ::new,
+            # which modifies the image in-place.
+            #
+            image = MiniMagick::Image.open(attachment_pathname)
+            image.quality(quality_guess)
+
+            image_tempfile.unlink() unless image_tempfile.nil?
+            image_tempfile = Tempfile.new('instablue') # An 'ensure' block tidies this later
+            image.write(image_tempfile)
+            image_tempfile.close() # Close but don't delete
+
+            image_size = image_tempfile.size
+
+            if image_size > MAX_PHOTO_BYTES
+              quality_guess -= 2
+            else
+              puts "...successful at file size #{image_size}"
+              attachment_pathname = image_tempfile.path
+              break # NOTE EARLY LOOP EXIT
+            end
+          end
+        end
+      end
 
       if USE_REAL_API_CALLS
         response = BSKY_CLIENT.post_request(
@@ -368,6 +407,10 @@ date_times.each do | post_date_time |
 
   posts_finished << post_date_time.iso8601
   File.write(FINISHED_FILE, YAML.dump(posts_finished))
+
+ensure
+  image_tempfile.unlink() unless image_tempfile.nil?
+  image_tempfile = nil
 end
 
 puts "*" * 80

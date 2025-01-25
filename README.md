@@ -16,7 +16,7 @@ That is far tighter than Instagram's limits, so:
 * Text is split at word boundaries to keep to 300 characters per per post or less.
 * A prefix of `Copied from Instagram:` is added to post texts at the start, or for posts with no text, the text is simply, `Copied from Instagram`.
 * If more than one post is needed - e.g. because the text exceeds 300 characters at the word boundary - then a root post with in-thread replies are used, with the commonly-seen convention of `(1/4)`-style ("Post number X out of Y posts in total") used as (again) a further prefix for each piece of posted text. So, your first post's text would read something like - "(1/2) Copied from Instagram: ...your text here..." with the second post in this hypothetical thread reading, "(2/2) ...your text continues...".
-* Images are posted before videos. Up to four images are used per post, splitting using a thread as described above if need be.
+* Images are posted before videos. Up to four images are used per post, splitting using a thread as described above if need be. Image quality may be lower than the original photos from Instagram due to the very low 1,000,000 byte limit on photos imposed by the BlueSky AT Protocol implementation.
 * Videos are posted last. Cover photos are *not* exported - they're deliberately skipped.
 
 If an error occurs when a "root" post has successfully been made, but one of the 'thread' related posts fails, then you'll need to clean up the partial post manually before restarting. See later for information on restarting and retries.
@@ -24,9 +24,25 @@ If an error occurs when a "root" post has successfully been made, but one of the
 
 
 ## Prerequisites
-### Dumping your Instagram data
+### Ruby 3.x
 
-Before you start, you need to have [Instaloader](https://instaloader.github.io/) installed. Build the dump of your Instagram posts using that tool. The dump will be put into a folder named from your instagram username. The command I've been using is:
+Instablue was developed on Ruby 3.4 on macOS, installed using [RVM](https://rvm.io/) to manage versions, but older and newer Ruby 3 versions should work fine as should other version and package managers on macOS (e.g. [asdf](https://asdf-vm.com)) or other operating systems.
+
+### Image Magick
+
+BlueSky has an image size limit of about a megabyte which Instagram images in newer posts will often exceed. Image quality must be lowered to reach the size limit if an image is too big, by re-encoding via the MiniMagick gem. This relies upon the prior installation of [ImageMagick](https://imagemagick.org). On macOS using [HomeBrew](https://brew.sh) you can install this easily with `brew install imagemagick`. Otherwise, please consult ImageMagick's installation documentation for help.
+
+### Gems
+
+Install required Ruby gems for Instablue by running command `bundle install` from inside the Instablue folder.
+
+### Instaloader
+
+You will need to have [Instaloader](https://instaloader.github.io/) installed. Very helpfully there is a macOS HomeBrew package for it, so `brew install instaloader` might be all you need. Otherwise, as ever, read the Instaloader installation documentation for further help.
+
+### Dump your Instagram data
+
+Before running Instablue, build a dump of your Instagram posts using Instaloader. The dump will be put into a folder named from your instagram username. The command I've been using is:
 
 ```sh
 instaloader --fast-update <profile-id> --login <profile-id> --password <insta-password>
@@ -58,14 +74,6 @@ instaloader --fast-update  adh1003 --login adh1003 --password ...redacted...
 ...that is to say - a UTC date-time based set of filenames that group posts, with JPEG format images and MP4 format movies. No other filetypes are supported. The extensive metadata in the compressed JSON is ignored. The text files contain your post's associated text. This is exported to Bluesky _without_ any attempt to recognise links, tags or similar - it's just plain text.
 
 See [the Instaloader usage guide](https://instaloader.github.io/basic-usage.html#basic-usage) for more.
-
-### Installing gems
-
-Assuming you have Ruby 3.x installed (e.g. via a manager such as `rbenv`), you just need to install gems via:
-
-```
-bundle install
-```
 
 
 
