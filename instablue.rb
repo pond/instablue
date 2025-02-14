@@ -73,6 +73,31 @@ def at_to_https(at_uri)
   return "https://bsky.app/profile/#{did}/post/#{rkey}"
 end
 
+# Try to call a block, returning its evaluated response. If a
+# Minisky::ServerErrorResponse error is encountered with status
+# 502, wait a few seconds and retry once. If already retried or
+# for any other kind of exception, let it propagate.
+#
+def retry_once
+  retried  = false
+  response = nil
+
+  begin
+    response = yield
+  rescue Minisky::ServerErrorResponse => e
+    if e.status == 502 && retried == false
+      retried = true
+      puts "API CALL FAILURE, 502, recoverable; retrying once in a few seconds..."
+      sleep 5
+      retry
+    else
+      raise
+    end
+  end
+
+  return response
+end
+
 # =============================================================================
 # MAIN SCRIPT
 # =============================================================================
@@ -389,11 +414,13 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
 
         # https://docs.bsky.app/docs/api/com-atproto-repo-upload-blob
         #
-        response = BSKY_CLIENT.post_request(
-          'com.atproto.repo.uploadBlob',
-          File.read(attachment_pathname).force_encoding('ASCII-8BIT'),
-          headers: { 'Content-Type' => mime_type }
-        )
+        response = retry_once do
+          BSKY_CLIENT.post_request(
+            'com.atproto.repo.uploadBlob',
+            File.read(attachment_pathname).force_encoding('ASCII-8BIT'),
+            headers: { 'Content-Type' => mime_type }
+          )
+        end
 
         # Only one video is supported in the API at a low level, so this will
         # keep overwriting until updated, regardless of MAX_VIDEOS_PER_POST.
@@ -459,14 +486,16 @@ date_times.each_with_index do | post_date_time, post_date_time_index |
         }
       end
 
-      response = BSKY_CLIENT.post_request(
-        'com.atproto.repo.createRecord',
-        {
-          repo:       BSKY_CLIENT.user.did,
-          collection: 'app.bsky.feed.post',
-          record:     record_body
-        }
-      )
+      response = retry_once do
+        BSKY_CLIENT.post_request(
+          'com.atproto.repo.createRecord',
+          {
+            repo:       BSKY_CLIENT.user.did,
+            collection: 'app.bsky.feed.post',
+            record:     record_body
+          }
+        )
+      end
 
       if root_post_uri.nil?
         root_post_uri = response['uri']
